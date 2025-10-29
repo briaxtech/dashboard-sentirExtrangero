@@ -20,25 +20,52 @@ export function StackedBarsChart({ data }: StackedBarsChartProps) {
   ]
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card shadow-lg p-6">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Distribución de resultados</h3>
-      <ResponsiveContainer width="100%" height={300}>
+    <div className="rounded-3xl border border-border/70 bg-card shadow-md p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Estado de las respuestas</h3>
+          <p className="text-sm text-muted-foreground">
+            Distribucion de resultados en el flujo operativo actual.
+          </p>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
-          <YAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
+          <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
+          <XAxis
+            dataKey="name"
+            stroke="var(--muted-foreground)"
+            tickLine={false}
+            axisLine={false}
+            style={{ fontSize: "12px" }}
+          />
+          <YAxis
+            stroke="var(--muted-foreground)"
+            tickLine={false}
+            axisLine={false}
+            style={{ fontSize: "12px" }}
+            allowDecimals={false}
+          />
           <Tooltip
+            cursor={{ fill: "var(--primary)", fillOpacity: 0.08 }}
             contentStyle={{
               backgroundColor: "var(--card)",
               border: "1px solid var(--border)",
-              borderRadius: "8px",
+              borderRadius: "12px",
+              boxShadow: "0 12px 32px rgba(20, 19, 33, 0.08)",
             }}
             labelStyle={{ color: "var(--foreground)" }}
           />
-          <Legend />
-          <Bar dataKey="ENVIADO" stackId="a" fill="var(--chart-1)" />
-          <Bar dataKey="PENDIENTE" stackId="a" fill="var(--chart-2)" />
-          <Bar dataKey="NO_RESPONDER" stackId="a" fill="var(--chart-3)" />
+          <Legend
+            verticalAlign="top"
+            align="right"
+            iconType="circle"
+            wrapperStyle={{ paddingBottom: 16, fontSize: "12px" }}
+          />
+          <Bar dataKey="ENVIADO" name="Enviado" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="PENDIENTE" name="Pendiente" stackId="a" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="NO_RESPONDER" name="No responder" stackId="a" fill="var(--chart-3)" radius={[12, 12, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

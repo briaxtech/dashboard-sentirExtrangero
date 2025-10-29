@@ -5,9 +5,12 @@ import { GeistMono } from "geist/font/mono"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Legal Dashboard",
-  description: "Dashboard de analisis de metricas operativas",
+  title: "Sentir Extranjero Dashboard",
+  description: "Panel operativo para el seguimiento de consultas",
   generator: "v0.app",
+  icons: {
+    icon: "/sentir-favicon.png",
+  },
 }
 
 export default function RootLayout({
@@ -17,8 +20,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="antialiased dark">
-        {children}
+      <body className="min-h-screen bg-background text-foreground antialiased font-sans">
+        <div className="min-h-screen">{children}</div>
       </body>
     </html>
   )

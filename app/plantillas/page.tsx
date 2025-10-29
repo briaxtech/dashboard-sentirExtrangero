@@ -1,35 +1,49 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { Sidebar } from "@/components/sidebar"
 import { Topbar } from "@/components/topbar"
 import type { LogItem } from "@/lib/types"
 import { countBy, meanConfidence } from "@/lib/utils-metrics"
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts"
-import { TrendingUp, Users, CheckCircle } from "lucide-react"
+import { CheckCircle, TrendingUp, Users } from "lucide-react"
+
+const PIE_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"]
+
+type TemplateStat = {
+  key: string
+  count: number
+  avgConfidence: number
+  enviados: number
+  pendientes: number
+  noResponder: number
+  successRate: number
+  responseRate: number
+}
 
 export default function PlantillasPage() {
   const [logs, setLogs] = useState<LogItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
     async function fetchLogs() {
       try {
-        const res = await fetch("/api/logs")
-        const data = await res.json()
+        const response = await fetch("/api/logs")
+        const data: LogItem[] = await response.json()
         setLogs(data)
       } catch (error) {
         console.error("Error fetching logs:", error)
@@ -41,97 +55,138 @@ export default function PlantillasPage() {
     fetchLogs()
   }, [])
 
-  const templateStats = Object.entries(countBy(logs, "template_key")).map(([key, count]) => {
-    const templateLogs = logs.filter((l) => l.template_key === key)
-    return {
-      key,
-      count,
-      avgConfidence: meanConfidence(templateLogs),
-      enviados: templateLogs.filter((l) => l.resultado === "ENVIADO").length,
-      pendientes: templateLogs.filter((l) => l.resultado === "PENDIENTE").length,
-      noResponder: templateLogs.filter((l) => l.resultado === "NO_RESPONDER").length,
-      successRate: count > 0 ? (templateLogs.filter((l) => l.resultado === "ENVIADO").length / count) * 100 : 0,
-      responseRate: (templateLogs.filter((l) => l.resultado === "ENVIADO").length / count) * 100,
-    }
-  })
+  const templateStats: TemplateStat[] = useMemo(() => {
+    return Object.entries(countBy(logs, "template_key")).map(([key, count]) => {
+      const templateLogs = logs.filter((log) => log.template_key === key)
+      const enviados = templateLogs.filter((log) => log.resultado === "ENVIADO").length
+      const pendientes = templateLogs.filter((log) => log.resultado === "PENDIENTE").length
+      const noResponder = templateLogs.filter((log) => log.resultado === "NO_RESPONDER").length
+      const avgConfidence = meanConfidence(templateLogs)
+      const successRate = count > 0 ? (enviados / count) * 100 : 0
+      const responseRate = count > 0 ? (enviados / count) * 100 : 0
+      return {
+        key,
+        count,
+        avgConfidence,
+        enviados,
+        pendientes,
+        noResponder,
+        successRate,
+        responseRate,
+      }
+    })
+  }, [logs])
 
   const chartData = templateStats.map((stat) => ({
     name: stat.key,
-    Enviados: stat.enviados,
-    Pendientes: stat.pendientes,
-    "No Responder": stat.noResponder,
+    enviados: stat.enviados,
+    pendientes: stat.pendientes,
+    noResponder: stat.noResponder,
   }))
 
-  const confidenceData = templateStats.map((stat) => ({
+  const confidenceDistribution = templateStats.map((stat) => ({
     name: stat.key,
-    value: Math.round(stat.avgConfidence * 100),
+    value: Number.parseFloat((stat.avgConfidence * 100).toFixed(1)),
   }))
-
-  const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"]
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Topbar />
-        <main className="flex-1 overflow-auto pt-20 pl-64">
-          <div className="p-8">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8">
-              <h2 className="text-3xl font-bold text-foreground mb-2">Plantillas</h2>
-              <p className="text-muted-foreground">Análisis de uso y rendimiento de plantillas</p>
+    <div className="flex min-h-screen bg-gradient-to-br from-background via-white to-background">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex flex-1 flex-col md:ml-64">
+        <Topbar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
+        <main className="flex-1 overflow-auto px-4 pb-16 pt-24 sm:px-6 md:px-10 md:pb-20 md:pt-28">
+          <div className="mx-auto w-full max-w-[1200px] space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-3xl border border-border/60 bg-card p-8 shadow-md"
+            >
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm uppercase tracking-wide text-muted-foreground">Analitica de plantillas</p>
+                  <h1 className="mt-1 text-3xl font-bold text-foreground">Uso y rendimiento por plantilla</h1>
+                  <p className="mt-2 text-muted-foreground">
+                    Evalua el comportamiento de cada plantilla y detecta oportunidades de optimizacion.
+                  </p>
+                </div>
+                <div className="w-full rounded-2xl bg-primary/10 px-6 py-4 text-right sm:max-w-xs sm:self-end">
+                  <p className="text-xs uppercase text-primary/70">Total plantillas activas</p>
+                  <p className="mt-1 text-3xl font-semibold text-primary">{templateStats.length}</p>
+                </div>
+              </div>
             </motion.div>
 
             {loading ? (
-              <div className="text-center py-12">
-                <div className="w-12 h-12 border-4 border-accent/30 border-t-accent rounded-full animate-spin mx-auto mb-4" />
+              <div className="py-20 text-center">
+                <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-accent/30 border-t-accent" />
                 <p className="text-muted-foreground">Cargando plantillas...</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <>
+                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                    className="rounded-3xl border border-border/60 bg-card p-6 shadow-md"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Total Plantillas</p>
-                        <p className="text-3xl font-bold text-accent">{templateStats.length}</p>
+                        <p className="text-sm text-muted-foreground">Total de plantillas</p>
+                        <p className="text-4xl font-bold text-foreground mt-2">{templateStats.length}</p>
                       </div>
-                      <Users size={32} className="text-accent/50" />
+                      <span className="rounded-2xl bg-primary/10 p-3 text-primary">
+                        <Users size={24} />
+                      </span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Plantillas con al menos una clasificacion registrada.
+                    </p>
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                    className="rounded-3xl border border-border/60 bg-card p-6 shadow-md"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Total Usos</p>
-                        <p className="text-3xl font-bold text-accent">{logs.length}</p>
+                        <p className="text-sm text-muted-foreground">Usos totales</p>
+                        <p className="text-4xl font-bold text-foreground mt-2">{logs.length}</p>
                       </div>
-                      <TrendingUp size={32} className="text-accent/50" />
+                      <span className="rounded-2xl bg-primary/10 p-3 text-primary">
+                        <TrendingUp size={24} />
+                      </span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Registros evaluados por el asistente en el periodo actual.
+                    </p>
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                    className="rounded-3xl border border-border/60 bg-card p-6 shadow-md"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Tasa Éxito Promedio</p>
-                        <p className="text-3xl font-bold text-green-400">
-                          {(templateStats.reduce((sum, s) => sum + s.successRate, 0) / templateStats.length).toFixed(0)}
+                        <p className="text-sm text-muted-foreground">Tasa de exito promedio</p>
+                        <p className="text-4xl font-bold text-primary mt-2">
+                          {templateStats.length > 0
+                            ? (
+                                templateStats.reduce((sum, stat) => sum + stat.successRate, 0) /
+                                templateStats.length
+                              ).toFixed(1)
+                            : "0.0"}
                           %
                         </p>
                       </div>
-                      <CheckCircle size={32} className="text-green-400/50" />
+                      <span className="rounded-2xl bg-primary/10 p-3 text-primary">
+                        <CheckCircle size={24} />
+                      </span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Porcentaje de consultas enviadas frente al total de cada plantilla.
+                    </p>
                   </motion.div>
                 </div>
 
@@ -139,29 +194,42 @@ export default function PlantillasPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                  className="rounded-3xl border border-border/60 bg-card p-6 shadow-md"
                 >
-                  <h3 className="text-lg font-semibold text-foreground mb-4">
-                    Distribución de Resultados por Plantilla
-                  </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
-                      <YAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-6">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Distribucion de confianza</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Promedio de confianza obtenido por plantilla.
+                      </p>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <PieChart>
+                      <Pie
+                        data={confidenceDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        dataKey="value"
+                        paddingAngle={6}
+                      >
+                        {confidenceDistribution.map((entry, index) => (
+                          <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "var(--card)",
                           border: "1px solid var(--border)",
-                          borderRadius: "8px",
+                          borderRadius: "12px",
+                          boxShadow: "0 12px 32px rgba(20, 19, 33, 0.08)",
                         }}
                         labelStyle={{ color: "var(--foreground)" }}
+                        formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
                       />
-                      <Legend />
-                      <Bar dataKey="Enviados" stackId="a" fill="var(--chart-1)" />
-                      <Bar dataKey="Pendientes" stackId="a" fill="var(--chart-2)" />
-                      <Bar dataKey="No Responder" stackId="a" fill="var(--chart-3)" />
-                    </BarChart>
+                    </PieChart>
                   </ResponsiveContainer>
                 </motion.div>
 
@@ -169,117 +237,114 @@ export default function PlantillasPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                  className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3"
                 >
-                  <h3 className="text-lg font-semibold text-foreground mb-4">Confianza Promedio por Plantilla</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={confidenceData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: ${value}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {confidenceData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "var(--card)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                        }}
-                        labelStyle={{ color: "var(--foreground)" }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </motion.div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {templateStats.map((stat, idx) => (
-                    <motion.div
+                  {templateStats.map((stat, index) => (
+                    <div
                       key={stat.key}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                      className="rounded-3xl border border-border/60 bg-card p-6 shadow-md transition-shadow hover:shadow-lg"
                     >
-                      <h3 className="text-lg font-semibold text-foreground mb-4">{stat.key}</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-muted-foreground">Total de usos</p>
-                          <p className="text-xl font-bold text-accent">{stat.count}</p>
+                      <h3 className="truncate text-lg font-semibold text-foreground">{stat.key}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {stat.count} registros analizados en total.
+                      </p>
+
+                      <div className="mt-5 space-y-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Enviados</span>
+                          <span className="font-semibold text-foreground">{stat.enviados}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-muted-foreground">Tasa de éxito</p>
-                          <p className="text-xl font-bold text-green-400">{stat.successRate.toFixed(0)}%</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Pendientes</span>
+                          <span className="font-semibold text-foreground">{stat.pendientes}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-muted-foreground">Confianza promedio</p>
-                          <p className="text-xl font-bold text-foreground">{(stat.avgConfidence * 100).toFixed(0)}%</p>
-                        </div>
-                        <div className="pt-3 border-t border-border/50 space-y-2">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-green-400">Enviados</span>
-                            <span className="font-semibold">{stat.enviados}</span>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span className="text-yellow-400">Pendientes</span>
-                            <span className="font-semibold">{stat.pendientes}</span>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span className="text-red-400">No Responder</span>
-                            <span className="font-semibold">{stat.noResponder}</span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Tasa de respuesta</p>
-                          <div className="w-full bg-secondary rounded-full h-2">
-                            <div
-                              className="bg-accent h-2 rounded-full transition-all"
-                              style={{ width: `${stat.responseRate}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-foreground mt-1">{stat.responseRate.toFixed(1)}%</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">No responder</span>
+                          <span className="font-semibold text-foreground">{stat.noResponder}</span>
                         </div>
                       </div>
-                    </motion.div>
+
+                      <div className="mt-5">
+                        <p className="text-xs text-muted-foreground">Confianza promedio</p>
+                        <p className="text-xl font-semibold text-primary mt-1">
+                          {(stat.avgConfidence * 100).toFixed(1)}%
+                        </p>
+                      </div>
+
+                      <div className="mt-4">
+                        <p className="text-xs text-muted-foreground">Tasa de respuesta</p>
+                        <div className="mt-2 h-2 w-full rounded-full bg-secondary">
+                          <div
+                            className="h-2 rounded-full bg-primary transition-all"
+                            style={{ width: `${Math.min(stat.responseRate, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-foreground mt-2">{stat.responseRate.toFixed(1)}%</p>
+                      </div>
+                    </div>
                   ))}
-                </div>
+                </motion.div>
 
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="rounded-2xl border border-border/50 bg-card shadow-lg p-6"
+                  className="rounded-3xl border border-border/60 bg-card p-6 shadow-md"
                 >
-                  <h3 className="text-lg font-semibold text-foreground mb-4">Comparativa de plantillas por estado</h3>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-6">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Comparativa por estado</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Visualiza como se distribuyen los resultados para cada plantilla.
+                      </p>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
-                      <YAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
+                      <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="var(--muted-foreground)"
+                        tickLine={false}
+                        axisLine={false}
+                        style={{ fontSize: "12px" }}
+                      />
+                      <YAxis
+                        stroke="var(--muted-foreground)"
+                        tickLine={false}
+                        axisLine={false}
+                        style={{ fontSize: "12px" }}
+                        allowDecimals={false}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "var(--card)",
                           border: "1px solid var(--border)",
-                          borderRadius: "8px",
+                          borderRadius: "12px",
+                          boxShadow: "0 12px 32px rgba(20, 19, 33, 0.08)",
                         }}
                         labelStyle={{ color: "var(--foreground)" }}
                       />
-                      <Legend />
-                      <Bar dataKey="enviados" fill="var(--chart-1)" name="Enviados" />
-                      <Bar dataKey="pendientes" fill="var(--chart-2)" name="Pendientes" />
-                      <Bar dataKey="noResponder" fill="var(--chart-3)" name="No Responder" />
+                      <Legend wrapperStyle={{ fontSize: "12px" }} />
+                      <Bar dataKey="enviados" stackId="a" fill="var(--chart-1)" name="Enviados" radius={[8, 8, 0, 0]} />
+                      <Bar
+                        dataKey="pendientes"
+                        stackId="a"
+                        fill="var(--chart-2)"
+                        name="Pendientes"
+                        radius={[8, 8, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="noResponder"
+                        stackId="a"
+                        fill="var(--chart-3)"
+                        name="No responder"
+                        radius={[8, 8, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </motion.div>
-              </div>
+              </>
             )}
           </div>
         </main>

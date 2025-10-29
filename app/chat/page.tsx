@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useEffect, useState, useRef } from "react"
-import { motion } from "framer-motion"
+import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { Sidebar } from "@/components/sidebar"
 import { Topbar } from "@/components/topbar"
-import { Send, Loader, MessageSquare, BarChart3, Mail, Zap } from "lucide-react"
+import { BarChart3, Loader, Mail, MessageSquare, Send, Zap } from "lucide-react"
 import type { LogItem } from "@/lib/types"
 
 interface Message {
@@ -16,11 +16,35 @@ interface Message {
   timestamp: Date
 }
 
+const QUICK_ACTIONS = [
+  {
+    icon: BarChart3,
+    label: "Resumen de metricas",
+    prompt: "Dame un resumen de las metricas principales del dashboard.",
+  },
+  {
+    icon: Mail,
+    label: "Analisis de emails",
+    prompt: "Cual es el estado actual de los emails procesados?",
+  },
+  {
+    icon: Zap,
+    label: "Plantillas destacadas",
+    prompt: "Que plantillas son las mas utilizadas y como rinden?",
+  },
+  {
+    icon: MessageSquare,
+    label: "Recomendaciones",
+    prompt: "Que recomendaciones tienes para mejorar nuestro proceso?",
+  },
+]
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState<LogItem[]>([])
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -36,21 +60,17 @@ export default function ChatPage() {
     fetchContext()
   }, [])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
   useEffect(() => {
-    scrollToBottom()
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = async (e: React.FormEvent, customMessage?: string) => {
-    e.preventDefault()
+  const handleSendMessage = async (event: React.FormEvent, customMessage?: string) => {
+    event.preventDefault()
     const messageToSend = customMessage || input
     if (!messageToSend.trim()) return
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `${Date.now()}`,
       role: "user",
       content: messageToSend,
       timestamp: new Date(),
@@ -63,29 +83,26 @@ export default function ChatPage() {
     try {
       const context = {
         totalLogs: logs.length,
-        enviados: logs.filter((l) => l.resultado === "ENVIADO").length,
-        pendientes: logs.filter((l) => l.resultado === "PENDIENTE").length,
-        noResponder: logs.filter((l) => l.resultado === "NO_RESPONDER").length,
-        avgConfidence: logs.length > 0 ? logs.reduce((sum, l) => sum + l.confidence, 0) / logs.length : 0,
-        templates: Array.from(new Set(logs.map((l) => l.template_key))),
+        enviados: logs.filter((item) => item.resultado === "ENVIADO").length,
+        pendientes: logs.filter((item) => item.resultado === "PENDIENTE").length,
+        noResponder: logs.filter((item) => item.resultado === "NO_RESPONDER").length,
+        avgConfidence: logs.length > 0 ? logs.reduce((sum, item) => sum + item.confidence, 0) / logs.length : 0,
+        templates: Array.from(new Set(logs.map((item) => item.template_key))),
       }
 
       const response = await fetch("/api/assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: messageToSend,
-          context,
-        }),
+        body: JSON.stringify({ message: messageToSend, context }),
       })
 
       if (!response.ok) throw new Error("Failed to get response")
 
       const data = await response.json()
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: `${Date.now() + 1}`,
         role: "assistant",
-        content: data.reply || "No response received",
+        content: data.reply || "No se recibio respuesta del asistente.",
         timestamp: new Date(),
       }
 
@@ -93,9 +110,9 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Error sending message:", error)
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: `${Date.now() + 1}`,
         role: "assistant",
-        content: "Error al procesar tu mensaje. Por favor, intenta de nuevo.",
+        content: "Ocurrio un problema al procesar tu mensaje. Intenta nuevamente en unos instantes.",
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, errorMessage])
@@ -104,146 +121,130 @@ export default function ChatPage() {
     }
   }
 
-  const quickActions = [
-    {
-      icon: BarChart3,
-      label: "Resumen de métricas",
-      prompt: "Dame un resumen de las métricas principales del dashboard",
-    },
-    {
-      icon: Mail,
-      label: "Análisis de emails",
-      prompt: "¿Cuál es el estado actual de los emails procesados?",
-    },
-    {
-      icon: Zap,
-      label: "Plantillas más usadas",
-      prompt: "¿Cuáles son las plantillas más utilizadas y cuál es su rendimiento?",
-    },
-    {
-      icon: MessageSquare,
-      label: "Recomendaciones",
-      prompt: "¿Qué recomendaciones tienes para mejorar nuestro proceso?",
-    },
-  ]
-
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Topbar />
-        <main className="flex-1 flex flex-col pt-20 pl-64">
-          <div className="flex-1 overflow-auto p-8">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8">
-              <h2 className="text-3xl font-bold text-foreground mb-2">Chat con IA</h2>
-              <p className="text-muted-foreground">Asistente inteligente para análisis de consultas</p>
+    <div className="flex min-h-screen bg-gradient-to-br from-background via-white to-background">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex flex-1 flex-col md:ml-64">
+        <Topbar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
+        <main className="flex-1 overflow-hidden px-4 pb-16 pt-24 sm:px-6 md:px-10 md:pb-20 md:pt-28">
+          <div className="mx-auto flex h-full max-w-5xl flex-col">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+              <h1 className="text-3xl font-bold text-foreground">Asistente inteligente</h1>
+              <p className="text-muted-foreground mt-2">
+                Conversa con un copiloto entrenado con los datos del dashboard para obtener respuestas accionables.
+              </p>
             </motion.div>
 
-            <div className="space-y-4 max-w-3xl">
-              {messages.length === 0 && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">Inicia una conversación con el asistente IA</p>
-                    <p className="text-sm text-muted-foreground">
-                      Puedes hacer preguntas sobre las métricas, plantillas o consultas procesadas
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {quickActions.map((action, idx) => {
-                      const Icon = action.icon
-                      return (
-                        <motion.button
-                          key={idx}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.1 }}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleSendMessage(e as any, action.prompt)
-                          }}
-                          className="rounded-2xl border border-border/50 bg-card shadow-lg p-4 text-left hover:border-accent/50 transition-all group"
-                        >
-                          <div className="flex items-start gap-3">
-                            <Icon size={20} className="text-accent mt-1 group-hover:scale-110 transition-transform" />
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{action.label}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{action.prompt}</p>
-                            </div>
-                          </div>
-                        </motion.button>
-                      )
-                    })}
-                  </div>
-                </motion.div>
-              )}
-
-              {messages.map((msg, idx) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-xl px-4 py-3 rounded-lg ${
-                      msg.role === "user"
-                        ? "bg-accent text-accent-foreground"
-                        : "rounded-2xl border border-border/50 bg-card shadow-lg"
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    <p className="text-xs mt-2 opacity-70">
-                      {msg.timestamp.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
-
-              {loading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex justify-start"
-                >
-                  <div className="rounded-2xl border border-border/50 bg-card shadow-lg px-4 py-3 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Loader size={16} className="animate-spin text-accent" />
-                      <p className="text-sm text-muted-foreground">Escribiendo...</p>
+            <div className="flex-1 overflow-auto rounded-3xl border border-border/50 bg-card shadow-md p-6">
+              <div className="space-y-6">
+                {messages.length === 0 && (
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="rounded-3xl border border-dashed border-border/60 bg-secondary/40 p-6 text-center">
+                      <p className="text-lg font-semibold text-foreground">Bienvenido al asistente de Sentir Extranjero</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Lanza una consulta o utiliza una de las acciones rapidas para empezar.
+                      </p>
                     </div>
-                  </div>
-                </motion.div>
-              )}
+                    <div className="mt-6 grid gap-3 md:grid-cols-2">
+                      {QUICK_ACTIONS.map((action, index) => {
+                        const Icon = action.icon
+                        return (
+                          <motion.button
+                            key={action.label}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.05 * index }}
+                            type="button"
+                            onClick={(event) => handleSendMessage(event as any, action.prompt)}
+                            className="group rounded-2xl border border-border/70 bg-card px-4 py-5 text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-lg"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="rounded-2xl bg-primary/10 p-2 text-primary transition-transform group-hover:scale-110">
+                                <Icon size={18} />
+                              </span>
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">{action.label}</p>
+                                <p className="text-xs text-muted-foreground mt-2">{action.prompt}</p>
+                              </div>
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                )}
 
-              <div ref={messagesEndRef} />
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-xl rounded-3xl px-5 py-4 shadow-sm ${
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border/50 bg-secondary/30 text-foreground"
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                      <p className="text-xs mt-3 opacity-70">
+                        {message.timestamp.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+
+                <AnimatePresence>
+                  {loading && (
+                    <motion.div
+                      key="typing"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="flex justify-start"
+                    >
+                      <div className="rounded-3xl border border-border/70 bg-card px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader size={16} className="animate-spin text-primary" />
+                          <span className="text-sm font-medium">El asistente esta escribiendo...</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div ref={messagesEndRef} />
+              </div>
             </div>
-          </div>
 
-          <div className="border-t border-border/50 bg-card/50 backdrop-blur-sm p-6 pl-8">
-            <form onSubmit={handleSendMessage} className="max-w-3xl flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Escribe tu pregunta..."
-                disabled={loading}
-                className="flex-1 px-4 py-3 rounded-lg bg-input border border-border/50 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 transition-all"
-              />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="px-6 py-3 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Send size={18} />
-                Enviar
-              </motion.button>
-            </form>
-            <p className="text-xs text-muted-foreground mt-3">
-              El asistente tiene acceso a los datos del dashboard para proporcionar análisis contextualizados
-            </p>
+            <div className="mt-6 rounded-3xl border border-border/70 bg-card px-6 py-5 shadow-md">
+              <form onSubmit={handleSendMessage} className="flex flex-col gap-3 md:flex-row md:items-center">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder="Escribe tu pregunta..."
+                  disabled={loading}
+                  className="flex-1 rounded-2xl border border-border/60 bg-input px-5 py-3 text-sm text-foreground shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Send size={18} />
+                  Enviar
+                </motion.button>
+              </form>
+              <p className="text-xs text-muted-foreground mt-3">
+                El asistente utiliza los datos recientes de log para contextualizar cada respuesta.
+              </p>
+            </div>
           </div>
         </main>
       </div>

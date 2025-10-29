@@ -1,12 +1,12 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Analytics } from "@vercel/analytics/next"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
 import "./globals.css"
-import { Suspense } from "react"
 
 export const metadata: Metadata = {
-  title: "Sentir Extranjero - Dashboard",
-  description: "Dashboard de gestión jurídica para extranjería",
+  title: "Legal Dashboard",
+  description: "Dashboard de analisis de metricas operativas",
   generator: "v0.app",
 }
 
@@ -16,10 +16,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
-      <body className="font-sans antialiased">
-        <Suspense fallback={null}>{children}</Suspense>
-        <Analytics />
+    <html lang="es" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className="antialiased dark">
+        {children}
       </body>
     </html>
   )
